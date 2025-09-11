@@ -1,0 +1,691 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Watchlist Lite</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                borderRadius: {
+                    lg: "var(--radius)",
+                    md: "calc(var(--radius) - 2px)",
+                    sm: "calc(var(--radius) - 4px)",
+                },
+                colors: {
+                    background: "var(--background)",
+                    foreground: "var(--foreground)",
+                    card: {
+                        DEFAULT: "var(--card)",
+                        foreground: "var(--card-foreground)",
+                    },
+                    primary: {
+                        DEFAULT: "var(--primary)",
+                        foreground: "var(--primary-foreground)",
+                    },
+                    secondary: {
+                        DEFAULT: "var(--secondary)",
+                        foreground: "var(--secondary-foreground)",
+                    },
+                    muted: {
+                        DEFAULT: "var(--muted)",
+                        foreground: "var(--muted-foreground)",
+                    },
+                    accent: {
+                        DEFAULT: "var(--accent)",
+                        foreground: "var(--accent-foreground)",
+                    },
+                    destructive: {
+                        DEFAULT: "var(--destructive)",
+                        foreground: "var(--destructive-foreground)",
+                    },
+                    success: {
+                        DEFAULT: "var(--success)",
+                        foreground: "var(--success-foreground)",
+                    },
+                    border: "var(--border)",
+                    input: "var(--input)",
+                    ring: "var(--ring)",
+                },
+                fontFamily: {
+                    sans: ["Inter", "system-ui", "sans-serif"],
+                }
+            },
+        }
+    };
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --background: hsl(210 20% 98%);
+            --foreground: hsl(222.2 84% 4.9%);
+            --card: hsl(0 0% 100%);
+            --card-foreground: hsl(222.2 84% 4.9%);
+            --primary: hsl(221.2 83.2% 53.3%);
+            --primary-foreground: hsl(210 40% 98%);
+            --secondary: hsl(210 40% 96%);
+            --secondary-foreground: hsl(222.2 84% 4.9%);
+            --muted: hsl(210 40% 96%);
+            --muted-foreground: hsl(215.4 16.3% 46.9%);
+            --accent: hsl(210 40% 96%);
+            --accent-foreground: hsl(222.2 84% 4.9%);
+            --destructive: hsl(0 84.2% 60.2%);
+            --destructive-foreground: hsl(210 40% 98%);
+            --success: hsl(142.1 76.2% 36.3%);
+            --success-foreground: hsl(355.7 100% 97.3%);
+            --border: hsl(214.3 31.8% 91.4%);
+            --input: hsl(214.3 31.8% 91.4%);
+            --ring: hsl(221.2 83.2% 53.3%);
+            --radius: 0.5rem;
+        }
+        
+        .drawer-enter {
+            transform: translateX(100%);
+        }
+        
+        .drawer-enter-active {
+            transform: translateX(0);
+            transition: transform 300ms ease-out;
+        }
+        
+        .drawer-exit {
+            transform: translateX(0);
+        }
+        
+        .drawer-exit-active {
+            transform: translateX(100%);
+            transition: transform 300ms ease-in;
+        }
+
+        .skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+        }
+
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: hsl(var(--muted));
+            transition: 0.3s;
+            border-radius: 24px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .toggle-slider {
+            background-color: hsl(var(--primary));
+        }
+
+        input:checked + .toggle-slider:before {
+            transform: translateX(20px);
+        }
+
+        .chart-line {
+            stroke: hsl(var(--primary));
+            stroke-width: 2;
+            fill: none;
+        }
+    </style>
+</head>
+<body class="bg-background text-foreground font-sans">
+    <!-- @COMPONENT: App [main application container] -->
+    <div class="min-h-screen bg-background">
+        <!-- @COMPONENT: Header [app header with title and refresh] -->
+        <header class="bg-card shadow-sm border-b border-border">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <i class="fas fa-chart-line text-primary text-2xl"></i>
+                        <h1 class="text-2xl font-bold text-foreground">Stock Watchlist Lite</h1>
+                    </div>
+                    <button data-event="click:handleRefresh" class="flex items-center space-x-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors">
+                        <i class="fas fa-refresh"></i>
+                        <span>Refresh</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+        <!-- @END_COMPONENT: Header -->
+
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <!-- @COMPONENT: FiltersPanel [search and sort controls] -->
+            <div class="bg-card p-6 rounded-lg shadow-sm border border-border mb-6">
+                <div class="flex flex-col sm:flex-row gap-4 items-center justify-between">
+                    <!-- Search Bar -->
+                    <div class="flex-1 max-w-md">
+                        <div class="relative">
+                            <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground"></i>
+                            <input 
+                                type="text" 
+                                placeholder="Search by symbol..."
+                                class="w-full pl-10 pr-4 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                                data-bind="searchQuery"
+                                data-mock="true"
+                            />
+                        </div>
+                    </div>
+
+                    <!-- Sort Controls -->
+                    <div class="flex items-center space-x-4">
+                        <label class="text-sm font-medium text-muted-foreground">Sort by:</label>
+                        <select class="px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring" data-bind="sortBy" data-mock="true">
+                            <option value="percentageChange">Percentage Change</option>
+                            <option value="capitalPrice">Capital Market Price</option>
+                            <option value="futuresPrice">Futures Price</option>
+                        </select>
+                        <button data-event="click:toggleSortOrder" class="px-3 py-2 border border-input rounded-md bg-background hover:bg-accent transition-colors" data-bind="sortOrder">
+                            <i class="fas fa-sort-amount-down" data-mock="true"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <!-- @END_COMPONENT: FiltersPanel -->
+
+            <!-- @COMPONENT: StockGrid [main grid of stock cards] -->
+            <!-- @STATE: stocks:array, loading:boolean, error:string -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
+                <!-- @MAP: stocks.map(stock => ( -->
+                <!-- @COMPONENT: StockCard [individual stock display card] -->
+                <div class="bg-card rounded-lg shadow-sm border border-border p-4 hover:shadow-md transition-shadow cursor-pointer" data-event="click:openDrawer" data-mock="true">
+                    <!-- Header with Symbol and Toggle -->
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-lg text-foreground" data-bind="stock.symbol">RELIANCE</h3>
+                        <div class="toggle-switch">
+                            <input type="checkbox" data-bind="stock.toggleView" data-mock="true" />
+                            <span class="toggle-slider"></span>
+                        </div>
+                    </div>
+
+                    <!-- Price Information -->
+                    <div class="space-y-2 mb-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Capital Market</span>
+                            <span class="font-semibold" data-bind="stock.capitalPrice">₹2,485.20</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Futures</span>
+                            <span class="font-semibold" data-bind="stock.futuresPrice">₹2,492.15</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Difference</span>
+                            <span class="font-semibold text-success" data-bind="stock.difference">+₹6.95</span>
+                        </div>
+                    </div>
+
+                    <!-- Percentage Change -->
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm text-muted-foreground">Change</span>
+                        <span class="px-2 py-1 rounded text-sm font-semibold bg-success/10 text-success" data-bind="stock.percentageChange">+2.34%</span>
+                    </div>
+
+                    <!-- Last Updated -->
+                    <div class="text-xs text-muted-foreground" data-bind="stock.lastUpdated">2 min ago</div>
+                </div>
+                <!-- @END_COMPONENT: StockCard -->
+
+                <!-- Additional Stock Cards for Demo -->
+                <div class="bg-card rounded-lg shadow-sm border border-border p-4 hover:shadow-md transition-shadow cursor-pointer" data-mock="true">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-lg text-foreground">TCS</h3>
+                        <div class="toggle-switch">
+                            <input type="checkbox" data-mock="true" />
+                            <span class="toggle-slider"></span>
+                        </div>
+                    </div>
+                    <div class="space-y-2 mb-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Capital Market</span>
+                            <span class="font-semibold">₹3,642.85</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Futures</span>
+                            <span class="font-semibold">₹3,638.90</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Difference</span>
+                            <span class="font-semibold text-destructive">-₹3.95</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm text-muted-foreground">Change</span>
+                        <span class="px-2 py-1 rounded text-sm font-semibold bg-destructive/10 text-destructive">-1.12%</span>
+                    </div>
+                    <div class="text-xs text-muted-foreground">5 min ago</div>
+                </div>
+
+                <div class="bg-card rounded-lg shadow-sm border border-border p-4 hover:shadow-md transition-shadow cursor-pointer" data-mock="true">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-lg text-foreground">INFY</h3>
+                        <div class="toggle-switch">
+                            <input type="checkbox" checked data-mock="true" />
+                            <span class="toggle-slider"></span>
+                        </div>
+                    </div>
+                    <div class="space-y-2 mb-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Capital Market</span>
+                            <span class="font-semibold">₹1,456.70</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Futures</span>
+                            <span class="font-semibold">₹1,462.35</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Difference</span>
+                            <span class="font-semibold text-success">+₹5.65</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm text-muted-foreground">Change</span>
+                        <span class="px-2 py-1 rounded text-sm font-semibold bg-success/10 text-success">+0.89%</span>
+                    </div>
+                    <div class="text-xs text-muted-foreground">1 min ago</div>
+                </div>
+
+                <div class="bg-card rounded-lg shadow-sm border border-border p-4 hover:shadow-md transition-shadow cursor-pointer" data-mock="true">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-lg text-foreground">HDFC</h3>
+                        <div class="toggle-switch">
+                            <input type="checkbox" data-mock="true" />
+                            <span class="toggle-slider"></span>
+                        </div>
+                    </div>
+                    <div class="space-y-2 mb-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Capital Market</span>
+                            <span class="font-semibold">₹1,623.45</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Futures</span>
+                            <span class="font-semibold">₹1,619.80</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Difference</span>
+                            <span class="font-semibold text-destructive">-₹3.65</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm text-muted-foreground">Change</span>
+                        <span class="px-2 py-1 rounded text-sm font-semibold bg-destructive/10 text-destructive">-2.45%</span>
+                    </div>
+                    <div class="text-xs text-muted-foreground">3 min ago</div>
+                </div>
+
+                <div class="bg-card rounded-lg shadow-sm border border-border p-4 hover:shadow-md transition-shadow cursor-pointer" data-mock="true">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-lg text-foreground">ITC</h3>
+                        <div class="toggle-switch">
+                            <input type="checkbox" data-mock="true" />
+                            <span class="toggle-slider"></span>
+                        </div>
+                    </div>
+                    <div class="space-y-2 mb-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Capital Market</span>
+                            <span class="font-semibold">₹412.90</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Futures</span>
+                            <span class="font-semibold">₹415.25</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Difference</span>
+                            <span class="font-semibold text-success">+₹2.35</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm text-muted-foreground">Change</span>
+                        <span class="px-2 py-1 rounded text-sm font-semibold bg-success/10 text-success">+1.67%</span>
+                    </div>
+                    <div class="text-xs text-muted-foreground">4 min ago</div>
+                </div>
+
+                <div class="bg-card rounded-lg shadow-sm border border-border p-4 hover:shadow-md transition-shadow cursor-pointer" data-mock="true">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-lg text-foreground">WIPRO</h3>
+                        <div class="toggle-switch">
+                            <input type="checkbox" checked data-mock="true" />
+                            <span class="toggle-slider"></span>
+                        </div>
+                    </div>
+                    <div class="space-y-2 mb-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Capital Market</span>
+                            <span class="font-semibold">₹452.30</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Futures</span>
+                            <span class="font-semibold">₹448.65</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Difference</span>
+                            <span class="font-semibold text-destructive">-₹3.65</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm text-muted-foreground">Change</span>
+                        <span class="px-2 py-1 rounded text-sm font-semibold bg-destructive/10 text-destructive">-0.34%</span>
+                    </div>
+                    <div class="text-xs text-muted-foreground">6 min ago</div>
+                </div>
+
+                <!-- More cards for demonstration -->
+                <div class="bg-card rounded-lg shadow-sm border border-border p-4 hover:shadow-md transition-shadow cursor-pointer" data-mock="true">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-lg text-foreground">ONGC</h3>
+                        <div class="toggle-switch">
+                            <input type="checkbox" data-mock="true" />
+                            <span class="toggle-slider"></span>
+                        </div>
+                    </div>
+                    <div class="space-y-2 mb-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Capital Market</span>
+                            <span class="font-semibold">₹189.75</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Futures</span>
+                            <span class="font-semibold">₹192.40</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Difference</span>
+                            <span class="font-semibold text-success">+₹2.65</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm text-muted-foreground">Change</span>
+                        <span class="px-2 py-1 rounded text-sm font-semibold bg-success/10 text-success">+3.21%</span>
+                    </div>
+                    <div class="text-xs text-muted-foreground">7 min ago</div>
+                </div>
+
+                <div class="bg-card rounded-lg shadow-sm border border-border p-4 hover:shadow-md transition-shadow cursor-pointer" data-mock="true">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-lg text-foreground">SBIN</h3>
+                        <div class="toggle-switch">
+                            <input type="checkbox" data-mock="true" />
+                            <span class="toggle-slider"></span>
+                        </div>
+                    </div>
+                    <div class="space-y-2 mb-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Capital Market</span>
+                            <span class="font-semibold">₹578.90</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Futures</span>
+                            <span class="font-semibold">₹575.25</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Difference</span>
+                            <span class="font-semibold text-destructive">-₹3.65</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm text-muted-foreground">Change</span>
+                        <span class="px-2 py-1 rounded text-sm font-semibold bg-destructive/10 text-destructive">-1.89%</span>
+                    </div>
+                    <div class="text-xs text-muted-foreground">8 min ago</div>
+                </div>
+                <!-- @END_MAP )) -->
+            </div>
+            <!-- @END_COMPONENT: StockGrid -->
+
+            <!-- Loading Skeleton States (shown when loading) -->
+            <!-- @COMPONENT: LoadingSkeletons [skeleton cards during loading] -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6" style="display: none;" data-loading-state="true">
+                <div class="bg-card rounded-lg shadow-sm border border-border p-4" data-mock="true">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="skeleton h-6 w-20 rounded"></div>
+                        <div class="skeleton h-6 w-11 rounded-full"></div>
+                    </div>
+                    <div class="space-y-2 mb-3">
+                        <div class="flex justify-between items-center">
+                            <div class="skeleton h-4 w-24 rounded"></div>
+                            <div class="skeleton h-4 w-16 rounded"></div>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <div class="skeleton h-4 w-20 rounded"></div>
+                            <div class="skeleton h-4 w-16 rounded"></div>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <div class="skeleton h-4 w-20 rounded"></div>
+                            <div class="skeleton h-4 w-14 rounded"></div>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="skeleton h-4 w-12 rounded"></div>
+                        <div class="skeleton h-6 w-16 rounded"></div>
+                    </div>
+                    <div class="skeleton h-3 w-20 rounded"></div>
+                </div>
+                <!-- Repeat skeleton pattern for all 6+ cards -->
+            </div>
+            <!-- @END_COMPONENT: LoadingSkeletons -->
+
+            <!-- Error State -->
+            <!-- @COMPONENT: ErrorState [error display with retry option] -->
+            <div class="bg-card rounded-lg shadow-sm border border-border p-8 text-center" style="display: none;" data-error-state="true">
+                <div class="text-destructive text-4xl mb-4">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-foreground mb-2">Unable to Load Data</h3>
+                <p class="text-muted-foreground mb-4">There was an error fetching stock data. Please try again.</p>
+                <button data-event="click:retryFetch" class="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors">
+                    <i class="fas fa-redo mr-2"></i>
+                    Retry
+                </button>
+            </div>
+            <!-- @END_COMPONENT: ErrorState -->
+        </div>
+
+        <!-- @COMPONENT: DetailsDrawer [right-side details panel] -->
+        <!-- @STATE: isOpen:boolean = false, selectedStock:object -->
+        <div class="fixed inset-y-0 right-0 w-96 bg-card shadow-xl border-l border-border transform translate-x-full transition-transform duration-300 ease-out z-50" data-drawer="true" data-mock="true">
+            <div class="flex flex-col h-full">
+                <!-- Drawer Header -->
+                <div class="flex items-center justify-between p-6 border-b border-border">
+                    <div class="flex items-center space-x-3">
+                        <h2 class="text-xl font-bold text-foreground" data-bind="selectedStock.symbol">RELIANCE</h2>
+                        <span class="px-2 py-1 rounded text-sm font-semibold bg-success/10 text-success" data-bind="selectedStock.percentageChange">+2.34%</span>
+                    </div>
+                    <button data-event="click:closeDrawer" class="p-2 hover:bg-accent rounded-md transition-colors">
+                        <i class="fas fa-times text-muted-foreground"></i>
+                    </button>
+                </div>
+
+                <!-- Drawer Content -->
+                <div class="flex-1 overflow-y-auto p-6">
+                    <!-- Chart Section -->
+                    <div class="mb-6">
+                        <h3 class="text-lg font-semibold mb-4 text-foreground">Capital Market Price Chart</h3>
+                        <div class="bg-muted/30 rounded-lg p-4 h-48 flex items-center justify-center">
+                            <!-- @FUNCTIONALITY: This should implement a 30-point line chart using canvas API or chart library -->
+                            <svg width="100%" height="100%" viewBox="0 0 300 150" class="border border-border rounded">
+                                <polyline 
+                                    class="chart-line"
+                                    points="10,80 25,75 40,85 55,70 70,90 85,65 100,95 115,55 130,75 145,85 160,60 175,100 190,45 205,80 220,70 235,85 250,65 265,90 280,75 295,85"
+                                    data-mock-chart="true"
+                                />
+                                <text x="10" y="145" class="text-xs fill-muted-foreground">9:00</text>
+                                <text x="150" y="145" class="text-xs fill-muted-foreground">12:00</text>
+                                <text x="280" y="145" class="text-xs fill-muted-foreground">3:30</text>
+                            </svg>
+                        </div>
+                    </div>
+
+                    <!-- Detailed Information -->
+                    <div class="space-y-4">
+                        <h3 class="text-lg font-semibold text-foreground">Detailed Information</h3>
+                        
+                        <div class="bg-muted/30 rounded-lg p-4 space-y-3">
+                            <div class="flex justify-between items-center">
+                                <span class="text-muted-foreground">Trading Symbol</span>
+                                <span class="font-semibold" data-bind="selectedStock.symbol">RELIANCE</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-muted-foreground">Capital Market Price</span>
+                                <span class="font-semibold" data-bind="selectedStock.capitalPrice">₹2,485.20</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-muted-foreground">Futures Price</span>
+                                <span class="font-semibold" data-bind="selectedStock.futuresPrice">₹2,492.15</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-muted-foreground">Price Difference</span>
+                                <span class="font-semibold text-success" data-bind="selectedStock.difference">+₹6.95</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-muted-foreground">Percentage Change</span>
+                                <span class="font-semibold text-success" data-bind="selectedStock.percentageChange">+2.34%</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-muted-foreground">Previous Close</span>
+                                <span class="font-semibold" data-bind="selectedStock.previousClose">₹2,428.45</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-muted-foreground">Volume</span>
+                                <span class="font-semibold" data-bind="selectedStock.volume">1,24,567</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-muted-foreground">Last Updated</span>
+                                <span class="text-sm text-muted-foreground" data-bind="selectedStock.lastUpdated">2 min ago</span>
+                            </div>
+                        </div>
+
+                        <!-- Additional Market Data -->
+                        <div class="bg-muted/30 rounded-lg p-4 space-y-3">
+                            <h4 class="font-semibold text-foreground">Market Statistics</h4>
+                            <div class="flex justify-between items-center">
+                                <span class="text-muted-foreground">Day High</span>
+                                <span class="font-semibold text-success">₹2,498.75</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-muted-foreground">Day Low</span>
+                                <span class="font-semibold text-destructive">₹2,445.30</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-muted-foreground">52W High</span>
+                                <span class="font-semibold">₹2,856.15</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-muted-foreground">52W Low</span>
+                                <span class="font-semibold">₹2,125.85</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Error State in Drawer -->
+                <div class="p-6 text-center" style="display: none;" data-drawer-error="true">
+                    <div class="text-destructive text-3xl mb-3">
+                        <i class="fas fa-exclamation-circle"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-foreground mb-2">Data Not Available</h3>
+                    <p class="text-muted-foreground">Unable to load detailed information for this stock.</p>
+                </div>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: DetailsDrawer -->
+
+        <!-- Overlay for drawer -->
+        <div class="fixed inset-0 bg-black/50 z-40" style="display: none;" data-drawer-overlay="true" data-event="click:closeDrawer"></div>
+    </div>
+    <!-- @END_COMPONENT: App -->
+
+    <script>
+        (function() {
+            // TODO: Implement React state management and component logic
+            // This is just a mockup demonstration
+
+            // Mock data for demonstration
+            const mockStocks = [
+                { symbol: 'RELIANCE', capitalPrice: 2485.20, futuresPrice: 2492.15, percentageChange: 2.34, lastUpdated: '2 min ago' },
+                { symbol: 'TCS', capitalPrice: 3642.85, futuresPrice: 3638.90, percentageChange: -1.12, lastUpdated: '5 min ago' },
+                { symbol: 'INFY', capitalPrice: 1456.70, futuresPrice: 1462.35, percentageChange: 0.89, lastUpdated: '1 min ago' },
+                { symbol: 'HDFC', capitalPrice: 1623.45, futuresPrice: 1619.80, percentageChange: -2.45, lastUpdated: '3 min ago' },
+                { symbol: 'ITC', capitalPrice: 412.90, futuresPrice: 415.25, percentageChange: 1.67, lastUpdated: '4 min ago' },
+                { symbol: 'WIPRO', capitalPrice: 452.30, futuresPrice: 448.65, percentageChange: -0.34, lastUpdated: '6 min ago' },
+            ];
+
+            // Simulate drawer functionality
+            const drawer = document.querySelector('[data-drawer="true"]');
+            const overlay = document.querySelector('[data-drawer-overlay="true"]');
+            
+            document.querySelectorAll('.bg-card.rounded-lg.shadow-sm.border.cursor-pointer').forEach(card => {
+                card.addEventListener('click', function() {
+                    drawer.style.transform = 'translateX(0)';
+                    overlay.style.display = 'block';
+                });
+            });
+
+            document.querySelectorAll('[data-event="click:closeDrawer"]').forEach(closeBtn => {
+                closeBtn.addEventListener('click', function() {
+                    drawer.style.transform = 'translateX(100%)';
+                    overlay.style.display = 'none';
+                });
+            });
+
+            // Auto-update timestamps
+            function updateTimestamps() {
+                // TODO: Implement real-time timestamp updates
+                console.log('Updating timestamps...');
+            }
+            
+            setInterval(updateTimestamps, 30000); // Update every 30 seconds
+
+            // Mock refresh functionality
+            document.querySelector('[data-event="click:handleRefresh"]').addEventListener('click', function() {
+                // TODO: Implement data refresh logic
+                console.log('Refreshing data...');
+            });
+
+            // Mock search and sort functionality
+            document.querySelector('input[data-bind="searchQuery"]').addEventListener('input', function() {
+                // TODO: Implement search filtering
+                console.log('Filtering by:', this.value);
+            });
+
+            document.querySelector('select[data-bind="sortBy"]').addEventListener('change', function() {
+                // TODO: Implement sorting logic
+                console.log('Sorting by:', this.value);
+            });
+        })();
+    </script>
+</body>
+</html>
